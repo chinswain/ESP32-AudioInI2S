@@ -3,11 +3,12 @@
 
 #include "Arduino.h"
 #include <driver/i2s.h>
+#include "soc/i2s_reg.h"
 
 class AudioInI2S
 {
 public:
-  AudioInI2S(int bck_pin, int ws_pin, int data_pin, int channel_pin = -1, i2s_channel_fmt_t channel_format = I2S_CHANNEL_FMT_ONLY_RIGHT);
+  AudioInI2S(int bck_pin, int ws_pin, int data_pin, int channel_pin = -1, i2s_channel_fmt_t channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT);
   void read(int32_t _samples[]);
   void begin(int sample_size, int sample_rate = 44100, i2s_port_t i2s_port_number = I2S_NUM_0);
 
@@ -25,14 +26,15 @@ private:
       .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
       .sample_rate = 0, // set in begin()
       .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,
-      .channel_format = I2S_CHANNEL_FMT_ONLY_RIGHT,
-      .communication_format = I2S_COMM_FORMAT_I2S,
-      .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
+      .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
+      .communication_format =  (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_MSB),
+      .intr_alloc_flags = 0,
       .dma_buf_count = 4,
       .dma_buf_len = 0, // set in begin()
       .use_apll = false,
       .tx_desc_auto_clear = false,
       .fixed_mclk = 0};
+
 
   i2s_pin_config_t _i2s_mic_pins = {
       .bck_io_num = I2S_PIN_NO_CHANGE, // set in begin()
@@ -56,7 +58,7 @@ void AudioInI2S::begin(int sample_size, int sample_rate, i2s_port_t i2s_port_num
   if (_channel_pin >= 0)
   {
     pinMode(_channel_pin, OUTPUT);
-    digitalWrite(_channel_pin, _channel_format == I2S_CHANNEL_FMT_ONLY_RIGHT ? LOW : HIGH);
+    digitalWrite(_channel_pin, _channel_format == I2S_CHANNEL_FMT_RIGHT_LEFT ? LOW : HIGH);
   }
 
   _sample_rate = sample_rate;
@@ -73,6 +75,8 @@ void AudioInI2S::begin(int sample_size, int sample_rate, i2s_port_t i2s_port_num
 
   // start up the I2S peripheral
   i2s_driver_install(_i2s_port_number, &_i2s_config, 0, NULL);
+  REG_SET_BIT(  I2S_TIMING_REG(_i2s_port_number),BIT(9));   /*  #include "soc/i2s_reg.h"   I2S_NUM -> 0 or 1*/
+  REG_SET_BIT( I2S_CONF_REG(_i2s_port_number), I2S_RX_MSB_SHIFT);
   i2s_set_pin(_i2s_port_number, &_i2s_mic_pins);
 }
 
